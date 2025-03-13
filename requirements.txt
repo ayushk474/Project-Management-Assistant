@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+requests
+jsonschema
+numpy
+faiss-cpu
+langchain
+langchain-community
+langchain-huggingface
+tenacity
+pydantic
+motor
