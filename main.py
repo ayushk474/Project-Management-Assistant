@@ -130,9 +130,9 @@ async def chat(query_request: QueryRequest):
 
     # Initialize LLM with dynamic model selection
    llm = HuggingFaceEndpoint(
-        repo_id=MODEL_MAP[query_request.model],  # Dynamically select model
-        model_kwargs={"token" : huggingface_api_key},
-        temperature=0.6
+       repo_id=MODEL_MAP[query_request.model],  # Dynamically select model
+       model_kwargs={"token" : huggingface_api_key},
+       temperature=0.6
     )
 
 
