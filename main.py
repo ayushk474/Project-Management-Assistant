@@ -19,24 +19,22 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load Hugging Face API Key
-from secret_api_keys import huggingface_api_key
-os.environ['HUGGINGFACEHUB_API_TOKEN'] = huggingface_api_key
+# 🔹 Load Hugging Face API Key
+huggingface_api_key = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 if not huggingface_api_key:
-    raise ValueError("HUGGINGFACEHUB_API_TOKEN is not set!")
-
+    raise ValueError("HUGGINGFACEHUB_API_TOKEN is not set in environment variables")
 # MongoDB Connection
-MONGO_URI = "mongodb+srv://ayushk47:A1234@assistant.w3yor.mongodb.net/?retryWrites=true&w=majority&appName=Assistant"
-DB_NAME = "Task"
-COLLECTION_NAME = "Task_data"
+MONGO_URI = os.getenv("MONGO_URI")  # Use Render's environment variable
 
-# Initialize FastAPI
+if not MONGO_URI:
+    raise ValueError("MongoDB URI is missing! Check environment variables.")
+
+client = AsyncIOMotorClient(MONGO_URI)
+db = client["Task"]
+task_collection = db["Task_data"]
+
 app = FastAPI()
 
-# Initialize MongoDB Client
-client = AsyncIOMotorClient(MONGO_URI)
-db = client[DB_NAME]
-task_collection = db[COLLECTION_NAME]
 
 # Request Model
 class QueryRequest(BaseModel):
