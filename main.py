@@ -85,7 +85,7 @@ def process_text(tasks: List[Dict[str, Any]]):
 
     # 🔹 Generate embeddings and store in FAISS
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    index = faiss.IndexFlatL2(256)
+    index = faiss.IndexFlatL2(384)
     vector_store = FAISS(
         embedding_function=embeddings,
         index=index,
