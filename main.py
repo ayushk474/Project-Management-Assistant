@@ -84,8 +84,8 @@ def process_text(tasks: List[Dict[str, Any]]):
     texts = text_splitter.split_text(full_text)
 
     # 🔹 Generate embeddings and store in FAISS
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
-    index = faiss.IndexFlatL2(768)
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/paraphrase-MiniLM-L6-v2")
+    index = faiss.IndexFlatL2(384)
     vector_store = FAISS(
         embedding_function=embeddings,
         index=index,
