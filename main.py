@@ -36,29 +36,25 @@ task_collection = db["Task_data"]
 app = FastAPI()
 
 
-# Request Model
-class QueryRequest(BaseModel):
-    query: str
-    model: str
-
-# Model Mapping
 MODEL_MAP = {
+    "mistral": "mistralai/Mistral-7B-Instruct-v0.1",
     "Hugging Face": "HuggingFaceH4/zephyr-7b-beta"
 }
 
+# Request Model
+class QueryRequest(BaseModel):
+    query: str
+    model: str  # Specify which LLM model to use
 
 # FUNCTION: Fetch Tasks from MongoDB
 async def fetch_eshway_tasks() -> List[Dict[str, Any]]:
     """Retrieve tasks from MongoDB collection."""
     try:
-        tasks = await task_collection.find().to_list(None)
-        if not tasks:
-            logger.warning("No tasks found in MongoDB.")
-        return tasks
+        tasks = await task_collection.find({}, {"title": 1, "description": 1, "status": 1, "priority": 1, "due_date": 1, "assignee_name": 1}).to_list(None)
+        return tasks if tasks else []
     except Exception as e:
         logger.error(f"MongoDB fetch error: {e}")
         return []
-
 
 # FUNCTION: Process Text into FAISS Vector Store
 def process_text(tasks: List[Dict[str, Any]]):
@@ -85,7 +81,14 @@ def process_text(tasks: List[Dict[str, Any]]):
 
     # 🔹 Generate embeddings and store in FAISS
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    index = faiss.IndexFlatL2(384)
+
+    d = 384  # Embedding dimension
+    index = faiss.IndexFlatL2(d)  # Flat L2 index (optimized for similarity search)
+
+    # Ensure index training if needed
+    if not index.is_trained:
+        index.train(np.random.rand(100, d).astype(np.float32))
+
     vector_store = FAISS(
         embedding_function=embeddings,
         index=index,
@@ -98,7 +101,6 @@ def process_text(tasks: List[Dict[str, Any]]):
     return vector_store
 
 # FUNCTION: Query LLM Model
-
 @retry(wait=wait_fixed(5), stop=stop_after_attempt(3))
 def query_model(llm, retriever, query):
     """Query the LLM using FAISS retriever and provide task context."""
@@ -119,7 +121,6 @@ def query_model(llm, retriever, query):
 
     response = qa.invoke({"query": prompt})
 
-
     logger.info(f"Raw LLM Response: {response}")
 
     return response.get("result", "No response generated")
@@ -127,7 +128,7 @@ def query_model(llm, retriever, query):
 # API Home Route
 @app.get("/")
 def home():
-    return {"message": "Welcome to Assistant of AI-Driven Project Management"}
+    return {"message": "Welcome to AI-Driven Project Management Assistant"}
 
 # 🛠 API Debug Route - Check MongoDB Tasks
 @app.get("/debug/tasks")
@@ -183,8 +184,8 @@ async def chat(query_request: QueryRequest):
 
     # 🔹 Initialize LLM
     llm = HuggingFaceEndpoint(
-        repo_id=MODEL_MAP[query_request.model],  # Dynamically select model
-        model_kwargs={"token" : huggingface_api_key},
+        repo_id=MODEL_MAP[query_request.model],
+        model_kwargs={"token": huggingface_api_key},
         temperature=0.6
     )
 
@@ -192,7 +193,6 @@ async def chat(query_request: QueryRequest):
     response = query_model(llm, retriever, query_request.query)
 
     return {"response": response}
-
 
 
 # Run FastAPI
