@@ -80,7 +80,7 @@ def process_text(tasks: List[Dict[str, Any]]):
     texts = text_splitter.split_text(full_text)
 
     # 🔹 Generate embeddings and store in FAISS
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/paraphrase-MiniLM-L3-v2")
 
     d = 384  # Embedding dimension
     index = faiss.IndexFlatL2(d)  # Flat L2 index (optimized for similarity search)
