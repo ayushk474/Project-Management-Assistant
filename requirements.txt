@@ -1,12 +1,12 @@
 fastapi
 uvicorn
-requests
-jsonschema
-numpy
+pydantic
+motor
 faiss-cpu
+numpy
 langchain
 langchain-community
 langchain-huggingface
+sentence-transformers
 tenacity
-pydantic
-motor
+httpx
