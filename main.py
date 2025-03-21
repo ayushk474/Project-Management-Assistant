@@ -129,6 +129,11 @@ async def stream_query_model(llm, retriever, query):
         yield word + " "
         await asyncio.sleep(0.15)  # Simulate real-time streaming
 
+# API Home Route
+@app.get("/")
+def home():
+    return {"message": "Welcome to AI-Driven Project Management Assistant"}
+    
 # API Chat Route with Streaming
 @app.post("/chat")
 async def chat(query_request: QueryRequest):
