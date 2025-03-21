@@ -4,6 +4,7 @@ import numpy as np
 from datetime import datetime
 from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from motor.motor_asyncio import AsyncIOMotorClient
 from langchain.chains import RetrievalQA
@@ -14,6 +15,7 @@ from langchain_community.docstore.in_memory import InMemoryDocstore
 from langchain_huggingface import HuggingFaceEndpoint
 from tenacity import retry, wait_fixed, stop_after_attempt
 import logging
+import asyncio
 
 # Enable Logging
 logging.basicConfig(level=logging.INFO)
@@ -38,7 +40,7 @@ app = FastAPI()
 
 MODEL_MAP = {
     "mistral": "mistralai/Mistral-7B-Instruct-v0.1",
-    "Hugging Face": "HuggingFaceH4/zephyr-7b-beta"
+    "Hugging Face": "HuggingFaceH4/zephyr-7b-alpha"
 }
 
 # Request Model
@@ -100,10 +102,8 @@ def process_text(tasks: List[Dict[str, Any]]):
     logger.info(f"FAISS VectorStore contains {len(texts)} embedded texts.")
     return vector_store
 
-# FUNCTION: Query LLM Model
-@retry(wait=wait_fixed(5), stop=stop_after_attempt(3))
-def query_model(llm, retriever, query):
-    """Query the LLM using FAISS retriever and provide task context."""
+async def stream_query_model(llm, retriever, query):
+    """Stream LLM response using FAISS retriever and provide task context."""
     qa = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
 
     # 🔹 Retrieve relevant task descriptions
@@ -123,50 +123,30 @@ def query_model(llm, retriever, query):
 
     logger.info(f"Raw LLM Response: {response}")
 
-    return response.get("result", "No response generated")
+    # Streaming Response (Yield word-by-word)
+    for word in response.get("result", "No response generated").split():
+        yield word + " "
+        await asyncio.sleep(0.15)  # Simulate real-time streaming
+    )
 
 # API Home Route
 @app.get("/")
 def home():
     return {"message": "Welcome to AI-Driven Project Management Assistant"}
 
-# 🛠 API Debug Route - Check MongoDB Tasks
-@app.get("/debug/tasks")
-async def debug_tasks():
-    """Retrieve all tasks from MongoDB for debugging."""
-    tasks = await fetch_eshway_tasks()
-    return {"tasks": tasks}
-
-# API Chat Route
+# API Chat Route with Streaming
 @app.post("/chat")
 async def chat(query_request: QueryRequest):
-    """Process user queries, including checking for assigned tasks."""
-    
+    """Process user queries, including pending tasks, completion strategies, etc., with streaming."""
+
     # 🔹 Fetch task data
     task_data = await fetch_eshway_tasks()
     if not task_data:
         raise HTTPException(status_code=500, detail="Failed to fetch tasks")
 
-    query_lower = query_request.query.lower()
-
-    # 🔹 Check if the query asks for tasks assigned to a specific assignee
-    if "tasks assigned to" in query_lower:
-        words = query_lower.split()
-        if "to" in words:
-            to_index = words.index("to")
-            if to_index + 1 < len(words):
-                assignee_name = " ".join(words[to_index + 1:])  # Extract assignee name
-
-                # 🔹 Filter tasks assigned to this person
-                assigned_tasks = [
-                    task for task in task_data
-                    if task.get("assignee_name", "").lower() == assignee_name.lower()
-                ]
-
-                if assigned_tasks:
-                    return {"response": {"assigned_tasks": assigned_tasks}}
-                else:
-                    return {"response": f"No tasks assigned to {assignee_name}."}
+    # 🔹 Count Pending Tasks
+    pending_tasks = [task for task in task_data if task.get("status", "").lower() == "todo"]
+    num_pending_tasks = len(pending_tasks)
 
     # 🔹 Ensure valid model selection
     if query_request.model not in MODEL_MAP:
@@ -189,10 +169,16 @@ async def chat(query_request: QueryRequest):
         temperature=0.6
     )
 
-    # Query the model
-    response = query_model(llm, retriever, query_request.query)
+    # 🔹 Modify Query with Pending Task Data
+    query_with_context = (
+        f"There are {num_pending_tasks} pending tasks.\n"
+        f"Here are their details:\n"
+        + "\n".join([f"- {task['title']} (Due: {task.get('due_date', 'N/A')})" for task in pending_tasks])
+        + f"\nNow answer the query: {query_request.query}"
+    )
 
-    return {"response": response}
+    # 🔹 Return Streaming Response
+    return StreamingResponse(stream_query_model(llm, retriever, query_with_context), media_type="text/plain")
 
 
 # Run FastAPI
